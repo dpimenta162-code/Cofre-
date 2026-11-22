@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#16233f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Cofre de Senhas</title>
+<style>
+:root{--bg:#eef0f5;--card:#ffffff;--ink:#16233f;--muted:#5d6881;--line:#dde2ee;--accent:#d9731a;--accent-ink:#ffffff;--danger:#b93a2c;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1426;--card:#16203a;--ink:#eef1f9;--muted:#9ba7c2;--line:#27335a;--accent:#f0903a;--accent-ink:#1b1206;--danger:#ff8070}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font:16px/1.45 "Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--ink);padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+[hidden]{display:none!important}
+.wrap{max-width:560px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+h1{font-size:21px;margin:0;letter-spacing:-.01em}
+input,select,textarea,button{font:inherit;color:inherit}
+input,select,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);margin-top:4px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+label{display:block;font-size:14px;color:var(--muted);margin-top:14px}
+button{border:0;border-radius:8px;padding:11px 14px;background:var(--line);cursor:pointer;white-space:nowrap}
+button.pri{background:var(--accent);color:var(--accent-ink);font-weight:600}
+button.dng{color:var(--danger)}
+button:disabled{opacity:.5}
+.row{display:flex;gap:8px;align-items:center}
+.grow{flex:1;min-width:0}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+.muted{color:var(--muted);font-size:14px}
+.msg{color:var(--danger);min-height:22px;font-size:14px;margin:8px 0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px}
+.badge{font-size:13px;background:var(--bg);border:1px solid var(--line);padding:1px 9px;border-radius:99px;color:var(--muted)}
+.warn{border-left:4px solid var(--accent)}
+.modal{position:fixed;inset:0;background:rgba(5,10,25,.6);display:flex;align-items:flex-end;justify-content:center;z-index:5}
+.sheet{background:var(--card);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+</style>
+</head>
+<body>
+
+<div id="lock" class="wrap">
+  <div class="card" style="margin-top:10vh">
+    <h1>Cofre de Senhas</h1>
+    <p class="muted" id="lock-hint"></p>
+    <form id="lock-form" autocomplete="on">
+      <input type="text" name="username" value="Cofre de Senhas" autocomplete="username" readonly tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+      <label for="pw">Senha mestra</label>
+      <input type="password" id="pw" name="password" autocomplete="current-password">
+      <div id="pw2box" hidden>
+        <label for="pw2">Repita a senha mestra</label>
+        <input type="password" id="pw2" name="password2" autocomplete="new-password">
+      </div>
+      <div class="msg" id="lock-msg"></div>
+      <button class="pri" id="lock-go" type="submit" style="width:100%"></button>
+    </form>
+    <p class="muted">Se você esquecer a senha mestra, não existe como recuperar os dados.</p>
+    <button type="button" id="imp-btn" style="width:100%">Restaurar de um backup</button>
+  </div>
+</div>
+
+<div id="app" class="wrap" hidden>
+  <div class="top">
+    <h1>Cofre de Senhas</h1>
+    <button id="lockbtn">Bloquear</button>
+  </div>
+  <div id="bkwarn" class="card warn muted" hidden>Faça um backup em <b>Exportar backup</b> e guarde na nuvem. Se os dados do navegador forem apagados, o cofre some deste celular.</div>
+  <input id="q" type="search" placeholder="Buscar por título, login ou nota">
+  <div id="list" style="margin:12px 0"></div>
+  <button class="pri" id="add" style="width:100%">Nova anotação</button>
+  <div class="row" style="margin-top:12px"><button id="bk" class="grow">Exportar backup</button><button id="imp-app" class="grow">Importar backup</button></div>
+  <p class="muted">Tudo é salvo automaticamente, criptografado, neste celular.</p>
+</div>
+
+<div id="modal" class="modal" hidden>
+  <div class="sheet">
+    <h1 id="mt">Nova anotação</h1>
+    <label for="f-title">Título</label>
+    <input id="f-title" placeholder="Ex.: Cartão Nubank, Gmail, Netflix" autocomplete="off">
+    <label for="f-cat">Categoria</label>
+    <select id="f-cat"><option>Cartão</option><option>Site/App</option><option>Banco</option><option>E-mail</option><option>Outro</option></select>
+    <label for="f-login">Login ou usuário</label>
+    <input id="f-login" autocapitalize="off" autocomplete="off">
+    <label for="f-pass">Senha</label>
+    <div class="row"><input id="f-pass" type="password" class="grow" autocomplete="new-password" style="margin-top:0"><button id="f-eye">Ver</button><button id="f-gen">Gerar</button></div>
+    <label for="f-notes">Notas</label>
+    <textarea id="f-notes" rows="3" placeholder="Evite guardar número completo do cartão e o CVV"></textarea>
+    <div class="row" style="margin-top:18px"><button class="pri grow" id="f-ok">Guardar</button><button id="f-cancel">Cancelar</button><button class="dng" id="f-del">Excluir</button></div>
+  </div>
+</div>
+
+<input type="file" id="imp" accept=".json,application/json" hidden>
+
+<script>
+(function(){
+'use strict';
+var $=function(i){return document.getElementById(i)};
+var enc=new TextEncoder(),dec=new TextDecoder();
+var LS='cofre.v1',LB='cofre.backup';
+var ITER=600000,mode,key,salt,masterPw='',data={entries:[]},idleT,editing=null;
+
+function getVault(){try{return JSON.parse(localStorage.getItem(LS))}catch(e){return null}}
+var VAULT=getVault();
+
+function b64(buf){var b=new Uint8Array(buf),s='';for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
+function unb64(s){var bin=atob(s),b=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)b[i]=bin.charCodeAt(i);return b}
+async function deriveKey(pw,s,iter){
+  var km=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:s,iterations:iter,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function persist(){
+  var iv=crypto.getRandomValues(new Uint8Array(12));
+  var ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,enc.encode(JSON.stringify(data)));
+  var v={v:1,iter:ITER,salt:b64(salt),iv:b64(iv),ct:b64(ct)};
+  localStorage.setItem(LS,JSON.stringify(v));
+  VAULT=v;
+}
+function h(t,a,c){
+  var e=document.createElement(t);
+  for(var k in (a||{})){
+    if(k==='class')e.className=a[k];
+    else if(k.slice(0,2)==='on')e.addEventListener(k.slice(2),a[k]);
+    else e.setAttribute(k,a[k]);
+  }
+  [].concat(c==null?[]:c).forEach(function(x){if(x)e.append(x)});
+  return e;
+}
+
+/* ---------- tela de bloqueio ---------- */
+function setMode(){
+  $('lock-hint').textContent=mode==='create'?'Crie uma senha mestra forte, com 12 ou mais caracteres. Ela protege todo o cofre.':'Digite a senha mestra para abrir o cofre.';
+  $('pw2box').hidden=mode!=='create';
+  $('pw').autocomplete=mode==='create'?'new-password':'current-password';
+  $('lock-go').textContent=mode==='create'?'Criar cofre':'Desbloquear';
+  $('imp-btn').hidden=mode==='relock';
+}
+function toLock(m){
+  mode=m;clearTimeout(idleT);
+  $('app').hidden=true;$('modal').hidden=true;$('list').textContent='';$('q').value='';
+  $('lock').hidden=false;
+  setMode();
+}
+mode=VAULT?'unlock':'create';
+setMode();
+if(!(window.crypto&&crypto.subtle)){
+  $('lock-msg').textContent='Este navegador não oferece criptografia. Abra o app no Chrome ou no Safari, em endereço https.';
+  $('lock-go').disabled=true;
+}
+$('lock-form').onsubmit=function(e){e.preventDefault();go()};
+
+async function go(){
+  var pw=$('pw').value,m=$('lock-msg');
+  m.textContent='';
+  $('lock-go').disabled=true;
+  try{
+    if(mode==='relock'){
+      if(pw===masterPw)show();else m.textContent='Senha mestra incorreta.';
+      return;
+    }
+    $('lock-go').textContent='Aguarde...';
+    if(mode==='create'){
+      if(pw.length<12){m.textContent='Use pelo menos 12 caracteres.';return}
+      if(pw!==$('pw2').value){m.textContent='As senhas não conferem.';return}
+      salt=crypto.getRandomValues(new Uint8Array(16));
+      key=await deriveKey(pw,salt,ITER);
+      masterPw=pw;data={entries:[]};
+      await persist();
+      if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();
+      show();
+      return;
+    }
+    var s=unb64(VAULT.salt);
+    var k=await deriveKey(pw,s,VAULT.iter);
+    var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(VAULT.iv)},k,unb64(VAULT.ct));
+    data=JSON.parse(dec.decode(pt));
+    salt=s;key=k;ITER=VAULT.iter;masterPw=pw;
+    show();
+  }catch(err){
+    m.textContent=mode==='create'?'Não foi possível criar o cofre neste navegador: '+err.message:'Senha mestra incorreta.';
+  }finally{
+    $('lock-go').disabled=!(window.crypto&&crypto.subtle);
+    $('pw').value='';$('pw2').value='';
+    setMode();
+  }
+}
+function show(){
+  mode='relock';
+  $('lock').hidden=true;$('app').hidden=false;
+  render();bump();
+}
+function bump(){
+  clearTimeout(idleT);
+  if(!$('app').hidden)idleT=setTimeout(function(){toLock('relock')},180000);
+}
+['click','keydown','touchstart','scroll'].forEach(function(ev){document.addEventListener(ev,bump,{passive:true})});
+$('lockbtn').onclick=function(){toLock('relock')};
+
+/* ---------- lista ---------- */
+$('q').oninput=render;
+function render(){
+  var q=$('q').value.toLowerCase(),L=$('list');
+  L.textContent='';
+  var es=data.entries.filter(function(e){return (e.title+' '+e.login+' '+e.cat+' '+e.notes).toLowerCase().indexOf(q)>-1})
+    .sort(function(a,b){return a.title.localeCompare(b.title)});
+  if(!es.length)L.append(h('p',{class:'muted'},data.entries.length?'Nada encontrado.':'Nenhuma anotação ainda. Toque em Nova anotação para começar.'));
+  es.forEach(function(e){L.append(card(e))});
+  var lb=0;try{lb=+localStorage.getItem(LB)||0}catch(x){}
+  $('bkwarn').hidden=Date.now()-lb<30*864e5;
+}
+function card(e){
+  var shown=false,pe=h('span',{class:'mono grow'},'••••••••');
+  var eye=h('button',{onclick:function(){shown=!shown;pe.textContent=shown?e.pass:'••••••••';eye.textContent=shown?'Ocultar':'Ver'}},'Ver');
+  var cp=h('button',{onclick:function(){copy(e.pass,cp)}},'Copiar');
+  var cl=h('button',{onclick:function(){copy(e.login,cl)}},'Copiar');
+  return h('div',{class:'card'},[
+    h('div',{class:'row'},[h('strong',{class:'grow'},e.title),h('span',{class:'badge'},e.cat),h('button',{onclick:function(){edit(e)}},'Editar')]),
+    e.login&&h('div',{class:'row',style:'margin-top:10px'},[h('span',{class:'mono grow'},e.login),cl]),
+    e.pass&&h('div',{class:'row',style:'margin-top:8px'},[pe,eye,cp]),
+    e.notes&&h('p',{class:'muted',style:'white-space:pre-wrap;margin:10px 0 0'},e.notes)
+  ]);
+}
+function copy(t,btn){
+  function done(){
+    var o=btn.textContent;btn.textContent='Copiado';
+    setTimeout(function(){btn.textContent=o},1200);
+    setTimeout(function(){if(navigator.clipboard)navigator.clipboard.writeText('').catch(function(){})},30000);
+  }
+  function fallback(){
+    var a=document.createElement('textarea');a.value=t;document.body.append(a);a.select();
+    try{document.execCommand('copy');done()}catch(x){}
+    a.remove();
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,fallback);else fallback();
+}
+
+/* ---------- edição (salva sozinho) ---------- */
+function edit(e){
+  editing=e||null;
+  $('mt').textContent=e?'Editar anotação':'Nova anotação';
+  $('f-title').value=e?e.title:'';
+  $('f-cat').value=e?e.cat:'Site/App';
+  $('f-login').value=e?e.login:'';
+  $('f-pass').value=e?e.pass:'';
+  $('f-pass').type='password';$('f-eye').textContent='Ver';
+  $('f-notes').value=e?e.notes:'';
+  $('f-del').hidden=!e;
+  $('modal').hidden=false;
+}
+$('add').onclick=function(){edit()};
+$('f-cancel').onclick=function(){$('modal').hidden=true};
+$('f-eye').onclick=function(){var p=$('f-pass');p.type=p.type==='password'?'text':'password';$('f-eye').textContent=p.type==='password'?'Ver':'Ocultar'};
+$('f-gen').onclick=function(){
+  var cs='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*?',a=crypto.getRandomValues(new Uint32Array(16)),s='';
+  a.forEach(function(n){s+=cs[n%cs.length]});
+  $('f-pass').value=s;$('f-pass').type='text';$('f-eye').textContent='Ocultar';
+};
+async function commit(){
+  try{await persist()}catch(err){alert('Não foi possível salvar neste celular: '+err.message)}
+  $('modal').hidden=true;render();
+}
+$('f-ok').onclick=function(){
+  var t=$('f-title').value.trim();
+  if(!t){$('f-title').focus();return}
+  var o={title:t,cat:$('f-cat').value,login:$('f-login').value,pass:$('f-pass').value,notes:$('f-notes').value};
+  if(editing)Object.assign(editing,o);else data.entries.push(Object.assign({id:Date.now()},o));
+  commit();
+};
+$('f-del').onclick=function(){
+  if(confirm('Excluir esta anotação?')){
+    data.entries=data.entries.filter(function(x){return x!==editing});
+    commit();
+  }
+};
+
+/* ---------- backup ---------- */
+$('bk').onclick=async function(){
+  var name='cofre-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  var blob=new Blob([JSON.stringify(VAULT)],{type:'application/json'});
+  try{
+    var f=new File([blob],name,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){
+      await navigator.share({files:[f],title:name});
+      localStorage.setItem(LB,Date.now());render();return;
+    }
+  }catch(err){if(err&&err.name==='AbortError')return}
+  var a=h('a',{href:URL.createObjectURL(blob),download:name});
+  document.body.append(a);a.click();a.remove();
+  localStorage.setItem(LB,Date.now());render();
+};
+function pickImport(){$('imp').click()}
+$('imp-btn').onclick=pickImport;
+$('imp-app').onclick=pickImport;
+$('imp').onchange=async function(){
+  var file=this.files[0];this.value='';
+  if(!file)return;
+  try{
+    var v=JSON.parse(await file.text());
+    if(!(v&&typeof v.salt==='string'&&typeof v.iv==='string'&&typeof v.ct==='string'&&v.iter>=100000&&v.iter<=2000000))throw new Error('formato');
+    if(getVault()&&!confirm('Isso substitui o cofre atual deste celular pelo backup. Continuar?'))return;
+    localStorage.setItem(LS,JSON.stringify(v));VAULT=v;
+    data={entries:[]};masterPw='';key=null;
+    toLock('unlock');
+    $('lock-msg').textContent='Backup importado. Digite a senha mestra dele.';
+  }catch(err){alert('Arquivo de backup inválido.')}
+};
+
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
+})();
+</script>
+</body>
+</html>
