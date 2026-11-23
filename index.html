@@ -25,10 +25,11 @@ input,select,textarea,button{font:inherit;color:inherit}
 input,select,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);margin-top:4px}
 input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 label{display:block;font-size:14px;color:var(--muted);margin-top:14px}
-button{border:0;border-radius:8px;padding:11px 14px;background:var(--line);cursor:pointer;white-space:nowrap}
+button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:8px;padding:11px 14px;background:var(--line);cursor:pointer;white-space:nowrap}
 button.pri{background:var(--accent);color:var(--accent-ink);font-weight:600}
 button.dng{color:var(--danger)}
 button:disabled{opacity:.5}
+.ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .row{display:flex;gap:8px;align-items:center}
 .grow{flex:1;min-width:0}
 .mono{font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
@@ -45,8 +46,9 @@ button:disabled{opacity:.5}
 
 <div id="lock" class="wrap">
   <div class="card" style="margin-top:10vh">
-    <h1>Cofre de Senhas</h1>
+    <h1><span data-ic="lock"></span> Cofre de Senhas</h1>
     <p class="muted" id="lock-hint"></p>
+    <button type="button" id="bio-btn" class="pri" style="width:100%;margin-bottom:6px" hidden><span data-ic="fingerprint"></span> Entrar com biometria</button>
     <form id="lock-form" autocomplete="on">
       <input type="text" name="username" value="Cofre de Senhas" autocomplete="username" readonly tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
       <label for="pw">Senha mestra</label>
@@ -59,20 +61,21 @@ button:disabled{opacity:.5}
       <button class="pri" id="lock-go" type="submit" style="width:100%"></button>
     </form>
     <p class="muted">Se você esquecer a senha mestra, não existe como recuperar os dados.</p>
-    <button type="button" id="imp-btn" style="width:100%">Restaurar de um backup</button>
+    <button type="button" id="imp-btn" style="width:100%"><span data-ic="upload"></span> Restaurar de um backup</button>
   </div>
 </div>
 
 <div id="app" class="wrap" hidden>
   <div class="top">
-    <h1>Cofre de Senhas</h1>
-    <button id="lockbtn">Bloquear</button>
+    <h1><span data-ic="lock"></span> Cofre</h1>
+    <button id="lockbtn"><span data-ic="lock"></span> Bloquear</button>
   </div>
   <div id="bkwarn" class="card warn muted" hidden>Faça um backup em <b>Exportar backup</b> e guarde na nuvem. Se os dados do navegador forem apagados, o cofre some deste celular.</div>
   <input id="q" type="search" placeholder="Buscar por título, login ou nota">
   <div id="list" style="margin:12px 0"></div>
-  <button class="pri" id="add" style="width:100%">Nova anotação</button>
-  <div class="row" style="margin-top:12px"><button id="bk" class="grow">Exportar backup</button><button id="imp-app" class="grow">Importar backup</button></div>
+  <button class="pri" id="add" style="width:100%"><span data-ic="plus"></span> Nova anotação</button>
+  <div class="row" style="margin-top:12px"><button id="bk" class="grow"><span data-ic="download"></span> Exportar backup</button><button id="imp-app" class="grow"><span data-ic="upload"></span> Importar backup</button></div>
+  <button id="bio-toggle" style="width:100%;margin-top:8px" hidden></button>
   <p class="muted">Tudo é salvo automaticamente, criptografado, neste celular.</p>
 </div>
 
@@ -86,10 +89,10 @@ button:disabled{opacity:.5}
     <label for="f-login">Login ou usuário</label>
     <input id="f-login" autocapitalize="off" autocomplete="off">
     <label for="f-pass">Senha</label>
-    <div class="row"><input id="f-pass" type="password" class="grow" autocomplete="new-password" style="margin-top:0"><button id="f-eye">Ver</button><button id="f-gen">Gerar</button></div>
+    <div class="row"><input id="f-pass" type="password" class="grow" autocomplete="new-password" style="margin-top:0"><button id="f-eye" aria-label="Mostrar senha"><span data-ic="eye"></span></button><button id="f-gen" aria-label="Gerar senha forte" title="Gerar senha forte"><span data-ic="refresh"></span></button></div>
     <label for="f-notes">Notas</label>
     <textarea id="f-notes" rows="3" placeholder="Evite guardar número completo do cartão e o CVV"></textarea>
-    <div class="row" style="margin-top:18px"><button class="pri grow" id="f-ok">Guardar</button><button id="f-cancel">Cancelar</button><button class="dng" id="f-del">Excluir</button></div>
+    <div class="row" style="margin-top:18px"><button class="pri grow" id="f-ok"><span data-ic="check"></span> Guardar</button><button id="f-cancel">Cancelar</button><button class="dng" id="f-del" aria-label="Excluir"><span data-ic="trash"></span></button></div>
   </div>
 </div>
 
@@ -100,20 +103,45 @@ button:disabled{opacity:.5}
 'use strict';
 var $=function(i){return document.getElementById(i)};
 var enc=new TextEncoder(),dec=new TextDecoder();
-var LS='cofre.v1',LB='cofre.backup';
+var LS='cofre.v1',LB='cofre.backup',BIO='cofre.bio';
 var ITER=600000,mode,key,salt,masterPw='',data={entries:[]},idleT,editing=null;
+
+/* ---------- ícones ---------- */
+var IC={
+ lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+ eye:'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>',
+ eyeoff:'<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>',
+ copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+ edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+ plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+ download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+ upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+ refresh:'<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+ trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2"/>',
+ check:'<polyline points="20 6 9 17 4 12"/>',
+ fingerprint:'<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .13-5.35 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>'
+};
+function ic(n){
+  var s=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  s.setAttribute('viewBox','0 0 24 24');s.setAttribute('class','ic');s.setAttribute('aria-hidden','true');
+  s.innerHTML=IC[n];return s;
+}
+document.querySelectorAll('[data-ic]').forEach(function(el){el.replaceWith(ic(el.getAttribute('data-ic')))});
+function ib(name,label,fn){var b=h('button',{onclick:fn,'aria-label':label,title:label});b.append(ic(name));return b}
 
 function getVault(){try{return JSON.parse(localStorage.getItem(LS))}catch(e){return null}}
 var VAULT=getVault();
+function hasBio(){try{return !!localStorage.getItem(BIO)}catch(e){return false}}
 
 function b64(buf){var b=new Uint8Array(buf),s='';for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
 function unb64(s){var bin=atob(s),b=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)b[i]=bin.charCodeAt(i);return b}
+function rnd(n){return crypto.getRandomValues(new Uint8Array(n))}
 async function deriveKey(pw,s,iter){
   var km=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']);
   return crypto.subtle.deriveKey({name:'PBKDF2',salt:s,iterations:iter,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
 }
 async function persist(){
-  var iv=crypto.getRandomValues(new Uint8Array(12));
+  var iv=rnd(12);
   var ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,enc.encode(JSON.stringify(data)));
   var v={v:1,iter:ITER,salt:b64(salt),iv:b64(iv),ct:b64(ct)};
   localStorage.setItem(LS,JSON.stringify(v));
@@ -130,6 +158,55 @@ function h(t,a,c){
   return e;
 }
 
+/* ---------- biometria (WebAuthn + PRF) ---------- */
+async function bioKey(out){
+  var km=await crypto.subtle.importKey('raw',out,'HKDF',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'HKDF',hash:'SHA-256',salt:new Uint8Array(0),info:enc.encode('cofre-bio')},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function prfGet(id,psalt){
+  var a=await navigator.credentials.get({publicKey:{challenge:rnd(32),allowCredentials:[{type:'public-key',id:id}],userVerification:'required',timeout:60000,extensions:{prf:{eval:{first:psalt}}}}});
+  var r=a.getClientExtensionResults().prf;
+  if(!(r&&r.results&&r.results.first))throw new Error('Este celular não devolveu a chave da biometria.');
+  return r.results.first;
+}
+async function enableBio(){
+  if(!window.PublicKeyCredential)throw new Error('Sem suporte a biometria neste navegador.');
+  var psalt=rnd(32);
+  var cred=await navigator.credentials.create({publicKey:{
+    rp:{name:'Cofre de Senhas'},
+    user:{id:rnd(16),name:'cofre',displayName:'Cofre de Senhas'},
+    challenge:rnd(32),
+    pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+    authenticatorSelection:{authenticatorAttachment:'platform',residentKey:'preferred',userVerification:'required'},
+    extensions:{prf:{eval:{first:psalt}}}
+  }});
+  var ext=cred.getClientExtensionResults();
+  if(!(ext.prf&&ext.prf.enabled))throw new Error('Este celular ou navegador não suporta biometria com chave protegida (PRF). Continue usando a senha mestra.');
+  var id=new Uint8Array(cred.rawId);
+  var out=ext.prf.results&&ext.prf.results.first;
+  if(!out)out=await prfGet(id,psalt);
+  var k=await bioKey(out),iv=rnd(12);
+  var ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},k,enc.encode(masterPw));
+  localStorage.setItem(BIO,JSON.stringify({id:b64(id),s:b64(psalt),iv:b64(iv),ct:b64(ct)}));
+}
+async function bioUnlock(){
+  var m=$('lock-msg');m.textContent='';
+  try{
+    var b=JSON.parse(localStorage.getItem(BIO));
+    var out=await prfGet(unb64(b.id),unb64(b.s));
+    var k=await bioKey(out);
+    var pw=dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(b.iv)},k,unb64(b.ct)));
+    await go(pw);
+  }catch(err){m.textContent='Biometria não confirmada. Use a senha mestra.'}
+}
+$('bio-btn').onclick=bioUnlock;
+$('bio-toggle').onclick=async function(){
+  if(hasBio()){localStorage.removeItem(BIO);render();return}
+  try{await enableBio();alert('Biometria ativada. Na próxima vez, use o botão Entrar com biometria.')}
+  catch(err){alert('Não foi possível ativar: '+err.message)}
+  render();
+};
+
 /* ---------- tela de bloqueio ---------- */
 function setMode(){
   $('lock-hint').textContent=mode==='create'?'Crie uma senha mestra forte, com 12 ou mais caracteres. Ela protege todo o cofre.':'Digite a senha mestra para abrir o cofre.';
@@ -137,6 +214,7 @@ function setMode(){
   $('pw').autocomplete=mode==='create'?'new-password':'current-password';
   $('lock-go').textContent=mode==='create'?'Criar cofre':'Desbloquear';
   $('imp-btn').hidden=mode==='relock';
+  $('bio-btn').hidden=!(hasBio()&&mode!=='create'&&window.PublicKeyCredential);
 }
 function toLock(m){
   mode=m;clearTimeout(idleT);
@@ -152,8 +230,8 @@ if(!(window.crypto&&crypto.subtle)){
 }
 $('lock-form').onsubmit=function(e){e.preventDefault();go()};
 
-async function go(){
-  var pw=$('pw').value,m=$('lock-msg');
+async function go(pwOverride){
+  var pw=pwOverride!=null?pwOverride:$('pw').value,m=$('lock-msg');
   m.textContent='';
   $('lock-go').disabled=true;
   try{
@@ -165,7 +243,7 @@ async function go(){
     if(mode==='create'){
       if(pw.length<12){m.textContent='Use pelo menos 12 caracteres.';return}
       if(pw!==$('pw2').value){m.textContent='As senhas não conferem.';return}
-      salt=crypto.getRandomValues(new Uint8Array(16));
+      salt=rnd(16);
       key=await deriveKey(pw,salt,ITER);
       masterPw=pw;data={entries:[]};
       await persist();
@@ -210,23 +288,27 @@ function render(){
   es.forEach(function(e){L.append(card(e))});
   var lb=0;try{lb=+localStorage.getItem(LB)||0}catch(x){}
   $('bkwarn').hidden=Date.now()-lb<30*864e5;
+  $('bio-toggle').hidden=!window.PublicKeyCredential;
+  $('bio-toggle').replaceChildren(ic('fingerprint'),hasBio()?'Desativar biometria':'Ativar biometria');
 }
 function card(e){
   var shown=false,pe=h('span',{class:'mono grow'},'••••••••');
-  var eye=h('button',{onclick:function(){shown=!shown;pe.textContent=shown?e.pass:'••••••••';eye.textContent=shown?'Ocultar':'Ver'}},'Ver');
-  var cp=h('button',{onclick:function(){copy(e.pass,cp)}},'Copiar');
-  var cl=h('button',{onclick:function(){copy(e.login,cl)}},'Copiar');
+  var eye=ib('eye','Mostrar senha',function(){shown=!shown;pe.textContent=shown?e.pass:'••••••••';eye.replaceChildren(ic(shown?'eyeoff':'eye'))});
+  var cp=ib('copy','Copiar senha',function(){copy(e.pass,cp)});
+  var cl=ib('copy','Copiar login',function(){copy(e.login,cl)});
+  var ed=ib('edit','Editar',function(){edit(e)});
   return h('div',{class:'card'},[
-    h('div',{class:'row'},[h('strong',{class:'grow'},e.title),h('span',{class:'badge'},e.cat),h('button',{onclick:function(){edit(e)}},'Editar')]),
+    h('div',{class:'row'},[h('strong',{class:'grow'},e.title),h('span',{class:'badge'},e.cat),ed]),
     e.login&&h('div',{class:'row',style:'margin-top:10px'},[h('span',{class:'mono grow'},e.login),cl]),
     e.pass&&h('div',{class:'row',style:'margin-top:8px'},[pe,eye,cp]),
     e.notes&&h('p',{class:'muted',style:'white-space:pre-wrap;margin:10px 0 0'},e.notes)
   ]);
 }
 function copy(t,btn){
+  var kids=[].slice.call(btn.childNodes);
   function done(){
-    var o=btn.textContent;btn.textContent='Copiado';
-    setTimeout(function(){btn.textContent=o},1200);
+    btn.replaceChildren(ic('check'));
+    setTimeout(function(){btn.replaceChildren.apply(btn,kids)},1200);
     setTimeout(function(){if(navigator.clipboard)navigator.clipboard.writeText('').catch(function(){})},30000);
   }
   function fallback(){
@@ -245,18 +327,18 @@ function edit(e){
   $('f-cat').value=e?e.cat:'Site/App';
   $('f-login').value=e?e.login:'';
   $('f-pass').value=e?e.pass:'';
-  $('f-pass').type='password';$('f-eye').textContent='Ver';
+  $('f-pass').type='password';$('f-eye').replaceChildren(ic('eye'));
   $('f-notes').value=e?e.notes:'';
   $('f-del').hidden=!e;
   $('modal').hidden=false;
 }
 $('add').onclick=function(){edit()};
 $('f-cancel').onclick=function(){$('modal').hidden=true};
-$('f-eye').onclick=function(){var p=$('f-pass');p.type=p.type==='password'?'text':'password';$('f-eye').textContent=p.type==='password'?'Ver':'Ocultar'};
+$('f-eye').onclick=function(){var p=$('f-pass');p.type=p.type==='password'?'text':'password';$('f-eye').replaceChildren(ic(p.type==='password'?'eye':'eyeoff'))};
 $('f-gen').onclick=function(){
   var cs='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*?',a=crypto.getRandomValues(new Uint32Array(16)),s='';
   a.forEach(function(n){s+=cs[n%cs.length]});
-  $('f-pass').value=s;$('f-pass').type='text';$('f-eye').textContent='Ocultar';
+  $('f-pass').value=s;$('f-pass').type='text';$('f-eye').replaceChildren(ic('eyeoff'));
 };
 async function commit(){
   try{await persist()}catch(err){alert('Não foi possível salvar neste celular: '+err.message)}
@@ -302,6 +384,7 @@ $('imp').onchange=async function(){
     if(!(v&&typeof v.salt==='string'&&typeof v.iv==='string'&&typeof v.ct==='string'&&v.iter>=100000&&v.iter<=2000000))throw new Error('formato');
     if(getVault()&&!confirm('Isso substitui o cofre atual deste celular pelo backup. Continuar?'))return;
     localStorage.setItem(LS,JSON.stringify(v));VAULT=v;
+    localStorage.removeItem(BIO);
     data={entries:[]};masterPw='';key=null;
     toLock('unlock');
     $('lock-msg').textContent='Backup importado. Digite a senha mestra dele.';
